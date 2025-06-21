@@ -68,17 +68,17 @@ def run_training_loop(args):
 
     for itr in range(args.n_iter):
         print(f"\n********** Iteration {itr} ************")
-        # TODO: sample `args.batch_size` transitions using utils.sample_trajectories
+        # sample `args.batch_size` transitions using utils.sample_trajectories
         # make sure to use `max_ep_len`
-        trajs, envsteps_this_batch = None, None  # TODO
+        trajs, envsteps_this_batch = utils.sample_trajectories(env, agent.actor, args.batch_size, max_ep_len)
         total_envsteps += envsteps_this_batch
 
         # trajs should be a list of dictionaries of NumPy arrays, where each dictionary corresponds to a trajectory.
         # this line converts this into a single dictionary of lists of NumPy arrays.
         trajs_dict = {k: [traj[k] for traj in trajs] for k in trajs[0]}
 
-        # TODO: train the agent using the sampled trajectories and the agent's update function
-        train_info: dict = None
+        # train the agent using the sampled trajectories and the agent's update function
+        train_info: dict = agent.update(trajs_dict['observation'], trajs_dict['action'], trajs_dict['reward'], trajs_dict['terminal'])
 
         if itr % args.scalar_log_freq == 0:
             # save eval metrics
@@ -184,4 +184,11 @@ def main():
 
 
 if __name__ == "__main__":
+    if os.environ.get("ACTIVATE_CUSTOM_REPR"):
+        print("--- [DEBUG] Activating custom PyTorch Tensor repr ---")
+        import torch
+        original_repr = torch.Tensor.__repr__
+        def custom_tensor_repr(tensor):
+            return f"Shape: {tensor.shape}\n{original_repr(tensor)}"
+        torch.Tensor.__repr__ = custom_tensor_repr
     main()
