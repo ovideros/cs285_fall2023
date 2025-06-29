@@ -1,6 +1,7 @@
 import os
 from tensorboardX import SummaryWriter
 import numpy as np
+import wandb
 
 class Logger:
     def __init__(self, log_dir, n_logged_samples=10, summary_writer=None):
@@ -12,6 +13,15 @@ class Logger:
         self._summ_writer = SummaryWriter(log_dir, flush_secs=1, max_queue=1)
 
     def log_scalar(self, scalar, name, step_):
+        # ensure scalar is a scalar value and not a tensor/array
+        if isinstance(scalar, np.ndarray):
+            scalar = scalar.item()
+        elif hasattr(scalar, "item"): # for torch tensors
+            scalar = scalar.item()
+        
+        # clean up name for tensorboard
+        name = name.replace(" ", "_")
+        
         self._summ_writer.add_scalar('{}'.format(name), scalar, step_)
 
     def log_scalars(self, scalar_dict, group_name, step, phase):
@@ -29,24 +39,30 @@ class Logger:
     def log_trajs_as_videos(self, trajs, step, max_videos_to_save=2, fps=10, video_title='video'):
 
         # reshape the rollouts
-        videos = [np.transpose(p['image_obs'], [0, 3, 1, 2]) for p in trajs]
+        videos_list = [np.transpose(p['image_obs'], [0, 3, 1, 2]) for p in trajs]
 
         # max rollout length
-        max_videos_to_save = np.min([max_videos_to_save, len(videos)])
-        max_length = videos[0].shape[0]
+        max_videos_to_save = np.min([max_videos_to_save, len(videos_list)])
+        max_length = videos_list[0].shape[0]
         for i in range(max_videos_to_save):
-            if videos[i].shape[0]>max_length:
-                max_length = videos[i].shape[0]
+            if videos_list[i].shape[0]>max_length:
+                max_length = videos_list[i].shape[0]
 
         # pad rollouts to all be same length
         for i in range(max_videos_to_save):
-            if videos[i].shape[0]<max_length:
-                padding = np.tile([videos[i][-1]], (max_length-videos[i].shape[0],1,1,1))
-                videos[i] = np.concatenate([videos[i], padding], 0)
+            if videos_list[i].shape[0]<max_length:
+                padding = np.tile([videos_list[i][-1]], (max_length-videos_list[i].shape[0],1,1,1))
+                videos_list[i] = np.concatenate([videos_list[i], padding], 0)
 
         # log videos to tensorboard event file
-        videos = np.stack(videos[:max_videos_to_save], 0)
-        self.log_video(videos, video_title, step, fps=fps)
+        videos_to_tb = np.stack(videos_list[:max_videos_to_save], 0)
+        self.log_video(videos_to_tb, video_title, step, fps=fps)
+
+        # log videos to wandb
+        if wandb.run:
+            # wandb.Video expects (T, C, H, W)
+            wandb_videos = {f"{video_title}_{i}": wandb.Video(videos_list[i], fps=fps, format="mp4") for i in range(max_videos_to_save)}
+            wandb.log(wandb_videos, step=step)
 
     def log_figures(self, figure, name, step, phase):
         """figure: matplotlib.pyplot figure handle"""

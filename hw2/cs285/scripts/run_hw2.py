@@ -15,27 +15,42 @@ from cs285.infrastructure import utils
 from cs285.infrastructure.logger import Logger
 from cs285.infrastructure.action_noise_wrapper import ActionNoiseWrapper
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
+import wandb
+
 MAX_NVIDEO = 2
 
 
-def run_training_loop(args):
-    logger = Logger(args.logdir)
+def run_training_loop(cfg):
+    # 初始化wandb
+    if cfg.use_wandb:
+        wandb.init(
+            project=cfg.wandb.project,
+            entity=cfg.wandb.entity,
+            config=OmegaConf.to_container(cfg, resolve=True),
+            name=cfg.exp_name,
+            tags=cfg.wandb.tags,
+            notes=cfg.wandb.notes
+        )
+    
+    logger = Logger(cfg.logdir)
 
     # set random seeds
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    ptu.init_gpu(use_gpu=not args.no_gpu, gpu_id=args.which_gpu)
+    np.random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+    ptu.init_gpu(use_gpu=not cfg.ngpu, gpu_id=cfg.gpu_id)
 
     # make the gym environment
-    env = gym.make(args.env_name, render_mode=None)
+    env = gym.make(cfg.env_name, render_mode=None)
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
 
     # add action noise, if needed
-    if args.action_noise_std > 0:
-        assert not discrete, f"Cannot use --action_noise_std for discrete environment {args.env_name}"
-        env = ActionNoiseWrapper(env, args.seed, args.action_noise_std)
+    if cfg.action_noise_std > 0:
+        assert not discrete, f"Cannot use --action_noise_std for discrete environment {cfg.env_name}"
+        env = ActionNoiseWrapper(env, cfg.seed, cfg.action_noise_std)
 
-    max_ep_len = args.ep_len or env.spec.max_episode_steps
+    max_ep_len = cfg.ep_len or env.spec.max_episode_steps
 
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
@@ -51,26 +66,26 @@ def run_training_loop(args):
         ob_dim,
         ac_dim,
         discrete,
-        n_layers=args.n_layers,
-        layer_size=args.layer_size,
-        gamma=args.discount,
-        learning_rate=args.learning_rate,
-        use_baseline=args.use_baseline,
-        use_reward_to_go=args.use_reward_to_go,
-        normalize_advantages=args.normalize_advantages,
-        baseline_learning_rate=args.baseline_learning_rate,
-        baseline_gradient_steps=args.baseline_gradient_steps,
-        gae_lambda=args.gae_lambda,
+        n_layers=cfg.l,
+        layer_size=cfg.s,
+        gamma=cfg.discount,
+        learning_rate=cfg.lr,
+        use_baseline=cfg.use_baseline,
+        use_reward_to_go=cfg.rtg,
+        normalize_advantages=cfg.na,
+        baseline_learning_rate=cfg.blr,
+        baseline_gradient_steps=cfg.bgs,
+        gae_lambda=cfg.gae_lambda,
     )
 
     total_envsteps = 0
     start_time = time.time()
 
-    for itr in range(args.n_iter):
+    for itr in range(cfg.n):
         print(f"\n********** Iteration {itr} ************")
-        # sample `args.batch_size` transitions using utils.sample_trajectories
+        # sample `cfg.b` transitions using utils.sample_trajectories
         # make sure to use `max_ep_len`
-        trajs, envsteps_this_batch = utils.sample_trajectories(env, agent.actor, args.batch_size, max_ep_len)
+        trajs, envsteps_this_batch = utils.sample_trajectories(env, agent.actor, cfg.b, max_ep_len)
         total_envsteps += envsteps_this_batch
 
         # trajs should be a list of dictionaries of NumPy arrays, where each dictionary corresponds to a trajectory.
@@ -80,11 +95,11 @@ def run_training_loop(args):
         # train the agent using the sampled trajectories and the agent's update function
         train_info: dict = agent.update(trajs_dict['observation'], trajs_dict['action'], trajs_dict['reward'], trajs_dict['terminal'])
 
-        if itr % args.scalar_log_freq == 0:
+        if itr % cfg.scalar_log_freq == 0:
             # save eval metrics
             print("\nCollecting data for eval...")
             eval_trajs, eval_envsteps_this_batch = utils.sample_trajectories(
-                env, agent.actor, args.eval_batch_size, max_ep_len
+                env, agent.actor, cfg.eb, max_ep_len
             )
 
             logs = utils.compute_metrics(trajs, eval_trajs)
@@ -101,11 +116,14 @@ def run_training_loop(args):
             for key, value in logs.items():
                 print("{} : {}".format(key, value))
                 logger.log_scalar(value, key, itr)
+                # 同时记录到wandb
+                if cfg.use_wandb:
+                    wandb.log({key: value}, step=itr)
             print("Done logging...\n\n")
 
             logger.flush()
 
-        if args.video_log_freq != -1 and itr % args.video_log_freq == 0:
+        if cfg.video_log_freq != -1 and itr % cfg.video_log_freq == 0:
             print("\nCollecting video rollouts...")
             eval_video_trajs = utils.sample_n_trajectories(
                 env, agent.actor, MAX_NVIDEO, max_ep_len, render=True
@@ -119,46 +137,15 @@ def run_training_loop(args):
                 video_title="eval_rollouts",
             )
 
+    # 关闭wandb
+    if cfg.use_wandb:
+        wandb.finish()
 
-def main():
-    import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, required=True)
-    parser.add_argument("--exp_name", type=str, required=True)
-    parser.add_argument("--n_iter", "-n", type=int, default=200)
-
-    parser.add_argument("--use_reward_to_go", "-rtg", action="store_true")
-    parser.add_argument("--use_baseline", action="store_true")
-    parser.add_argument("--baseline_learning_rate", "-blr", type=float, default=5e-3)
-    parser.add_argument("--baseline_gradient_steps", "-bgs", type=int, default=5)
-    parser.add_argument("--gae_lambda", type=float, default=None)
-    parser.add_argument("--normalize_advantages", "-na", action="store_true")
-    parser.add_argument(
-        "--batch_size", "-b", type=int, default=1000
-    )  # steps collected per train iteration
-    parser.add_argument(
-        "--eval_batch_size", "-eb", type=int, default=400
-    )  # steps collected per eval iteration
-
-    parser.add_argument("--discount", type=float, default=1.0)
-    parser.add_argument("--learning_rate", "-lr", type=float, default=5e-3)
-    parser.add_argument("--n_layers", "-l", type=int, default=2)
-    parser.add_argument("--layer_size", "-s", type=int, default=64)
-
-    parser.add_argument(
-        "--ep_len", type=int
-    )  # students shouldn't change this away from env's default
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--no_gpu", "-ngpu", action="store_true")
-    parser.add_argument("--which_gpu", "-gpu_id", default=0)
-    parser.add_argument("--video_log_freq", type=int, default=-1)
-    parser.add_argument("--scalar_log_freq", type=int, default=1)
-
-    parser.add_argument("--action_noise_std", type=float, default=0)
-
-    args = parser.parse_args()
-
+@hydra.main(version_base=None, config_path="../cfg", config_name="short_names")
+def main(cfg: DictConfig) -> None:
+    # 映射简写到完整参数名 (如果需要的话，但为了最小化修改，我们直接在代码中使用简写)
+    
     # create directory for logging
     logdir_prefix = "q2_pg_"  # keep for autograder
 
@@ -169,18 +156,18 @@ def main():
 
     logdir = (
         logdir_prefix
-        + args.exp_name
+        + cfg.exp_name
         + "_"
-        + args.env_name
+        + cfg.env_name
         + "_"
         + time.strftime("%d-%m-%Y_%H-%M-%S")
     )
     logdir = os.path.join(data_path, logdir)
-    args.logdir = logdir
+    cfg.logdir = logdir
     if not (os.path.exists(logdir)):
         os.makedirs(logdir)
 
-    run_training_loop(args)
+    run_training_loop(cfg)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,32 @@
+# 默认配置，使用简写参数名
+env_name: ???
+exp_name: ???
+n: 200 # n_iter
+rtg: false # use_reward_to_go
+use_baseline: false
+blr: 0.005 # baseline_learning_rate
+bgs: 5 # baseline_gradient_steps
+gae_lambda: null
+na: false # normalize_advantages
+b: 1000 # batch_size
+eb: 400 # eval_batch_size
+discount: 1.0
+lr: 0.005 # learning_rate
+l: 2 # n_layers
+s: 64 # layer_size
+ep_len: null
+seed: 1
+ngpu: false # no_gpu
+gpu_id: 0 # which_gpu
+video_log_freq: -1
+scalar_log_freq: 1
+action_noise_std: 0.0
+logdir: ???
+
+# wandb配置
+use_wandb: true
+wandb:
+  project: "cs285_hw2"
+  entity: null
+  tags: []
+  notes: "" 
