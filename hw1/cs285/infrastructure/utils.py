@@ -33,7 +33,10 @@ def sample_trajectory(env, policy, max_path_length, render=False):
             image_obs.append(cv2.resize(img, dsize=(250, 250), interpolation=cv2.INTER_CUBIC))
     
         # use the most recent ob to decide what to do
-        ac = ptu.to_numpy(policy(ob))
+        # solution 1
+        # ac = ptu.to_numpy(policy(ob))
+        # solution 2
+        ac = ptu.to_numpy(policy(ob).sample())
 
         # take that action and get reward and next ob
         next_ob, rew, done, _ = env.step(ac)
