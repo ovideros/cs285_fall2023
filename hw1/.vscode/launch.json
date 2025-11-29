@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug run_hw1 (bc_ant)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/cs285/scripts/run_hw1.py",
+      "args": [
+        "--expert_policy_file",
+        "${workspaceFolder}/cs285/policies/experts/Hopper.pkl",
+        "--env_name",
+        "Hopper-v4",
+        "--exp_name",
+        "dagger_hopper",
+        "--n_iter",
+        "10",
+        "--do_dagger",
+        "--expert_data",
+        "${workspaceFolder}/cs285/expert_data/expert_data_Hopper-v4.pkl",
+        "--video_log_freq",
+        "-1"
+      ],
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": false
+    },
+    {
+      "name": "Attach to debugpy (5678)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "${workspaceFolder}"
+        }
+      ],
+      "justMyCode": false
+    }
+  ]
+}

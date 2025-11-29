@@ -1,0 +1,34 @@
+[project]
+name = "cs285-hw1"
+version = "0.1.0"
+description = "CS285 HW1"
+requires-python = ">=3.9,<3.10"
+dependencies = [
+  "numpy<2",
+  "mujoco==2.2.0",
+  "gym==0.25.2",
+  "box2d-py==2.3.8",
+  "tensorboard>=2.10,<2.12",
+  "tensorboardX>=2.5.1,<2.6",
+  "matplotlib>=3.5,<3.7",
+  "ipython>=7.34,<8",
+  "moviepy>=1.0.3,<1.1",
+  "pyvirtualdisplay>=3.0,<3.1",
+  "torch>=1.12,<1.14",
+  "opencv-python>=4.6,<4.7",
+  "ipdb>=0.13.9,<0.14",
+  "swig==4.0.2"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cs285"]
+
+[tool.mypy]
+# Enable strict mode for comprehensive checks
+strict = true
+# Ignore missing imports for third-party libraries without type hints
+ignore_missing_imports = true
