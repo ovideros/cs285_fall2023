@@ -84,8 +84,10 @@ class PGAgent(nn.Module):
 
         # step 4: if needed, use all datapoints (s_t, a_t, q_t) to update the PG critic/baseline
         if self.critic is not None:
-            # TODO: perform `self.baseline_gradient_steps` updates to the critic/baseline network
-            critic_info: dict = None
+            # perform `self.baseline_gradient_steps` updates to the critic/baseline network
+            for _ in range(self.baseline_gradient_steps - 1):
+                self.critic.update(obs, q_values)
+            critic_info: dict = self.critic.update(obs, q_values)
 
             info.update(critic_info)
 
@@ -123,13 +125,14 @@ class PGAgent(nn.Module):
             # if no baseline, then what are the advantages?
             advantages = q_values
         else:
-            # TODO: run the critic and use it as a baseline
-            values = None
+            # run the critic and use it as a baseline
+            values = self.critic(ptu.from_numpy(obs))
+            values = np.squeeze(ptu.to_numpy(values))
             assert values.shape == q_values.shape
 
             if self.gae_lambda is None:
-                # TODO: if using a baseline, but not GAE, what are the advantages?
-                advantages = None
+                # if using a baseline, but not GAE, what are the advantages?
+                advantages = q_values - values
             else:
                 # TODO: implement GAE
                 batch_size = obs.shape[0]
@@ -147,9 +150,9 @@ class PGAgent(nn.Module):
                 # remove dummy advantage
                 advantages = advantages[:-1]
 
-        # TODO: normalize the advantages to have a mean of zero and a standard deviation of one within the batch
+        # normalize the advantages to have a mean of zero and a standard deviation of one within the batch
         if self.normalize_advantages:
-            pass
+            advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-6)
 
         return advantages
 

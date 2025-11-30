@@ -160,7 +160,7 @@ def main():
     args = parser.parse_args()
 
     # create directory for logging
-    logdir_prefix = "q2_pg_"  # keep for autograder
+    logdir_prefix = "sec3"  # keep for autograder
 
     data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data")
 
@@ -168,12 +168,12 @@ def main():
         os.makedirs(data_path)
 
     logdir = (
-        logdir_prefix
-        + args.exp_name
-        + "_"
-        + args.env_name
-        + "_"
-        + time.strftime("%d-%m-%Y_%H-%M-%S")
+        # logdir_prefix
+        args.exp_name
+        # + "_"
+        # + args.env_name
+        # + "_"
+        # + time.strftime("%Y-%m-%d_%H-%M-%S")
     )
     logdir = os.path.join(data_path, logdir)
     args.logdir = logdir

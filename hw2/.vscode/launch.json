@@ -2,21 +2,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "hw2: CartPole 调试 (uv + debugpy)",
+            "name": "hw2: HalfCheetah 调试 (uv + debugpy)",
             "type": "debugpy",
             "request": "launch",
             "python": "${workspaceFolder}/.venv/bin/python",
             "program": "${workspaceFolder}/cs285/scripts/run_hw2.py",
             "cwd": "${workspaceFolder}",
             "args": [
-                "--env_name",
-                "CartPole-v0",
+                "--env_name", 
+                "HalfCheetah-v4",
                 "-n",
                 "100",
                 "-b",
-                "1000",
+                "5000",
+                "-rtg",
+                "--discount",
+                "0.95",
+                "-lr",
+                "0.01",
+                "--use_baseline",
                 "--exp_name",
-                "cartpole_lb_na"
+                "cheetah_baseline"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
